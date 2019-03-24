@@ -53,6 +53,7 @@ int main(int argc, char *argv[])
 		printf("----------------------------------------------------\n");
 	}
 
+	free(community);
 	free(ifIndex);
 	close(sock); 
 	return 0; 
