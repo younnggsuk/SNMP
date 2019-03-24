@@ -1,5 +1,5 @@
-#ifndef __FUNC_H__
-#define __FUNC_H__
+#ifndef __MY_SNMP_H__
+#define __MY_SNMP_H__
 
 #define PORT_SNMP 161 
 #define BUF_MAX 1000
@@ -23,29 +23,30 @@ void MakeUDPSocket(int *sock, struct sockaddr_in *servAddr, char *ipAddr);
 /*
  	SNMP Get-request
  */
-int MakeSnmpGetRequest(u_char requestPacket[], char *community, u_int oid[], int oidLen);
+int MakeSnmpGetRequest(u_char requestPacket[], char *community, u_int oid[], int oidLen, u_int reqId);
+
 int ConvertOID(char *oidStr, u_int oid[]);
+
+/*
+ 	SNMP Get-next-request
+ */
+int MakeSnmpGetNextRequest(u_char requestPacket[], char *community, u_int oid[], int oidLen, u_int reqId);
 
 /* 
     SNMP Get-response
  */
-int ParseSnmpGetResponse(u_char responsePacket[], int recvLen, u_char recvData[]);
+int ParseSnmpGetResponse(u_char responsePacket[], int recvLen, u_char recvData[], u_int reqId);
 
 int ParseAsnHeader(u_char responsePacket[], int *index);
 int ParsePduLength(u_char responsePacket[], int recvLen, int *index);
 int ParseVersion(u_char responsePacket[], int *index);
 int ParseCommunity(u_char responsePacket[], int *index);
 int ParseResponse(u_char responsePacket[], int recvLen, int *index);
-int ParseRequestId(u_char responsePacket[], int *index);
+int ParseRequestId(u_char responsePacket[], int *index, u_int reqId);
 int ParseErrorStatus(u_char responsePacket[], int *index);
 int ParseErrorIndex(u_char responsePacket[], int *index);
 int ParseVarBindingSequence(u_char responsePacket[], int *index);
 int ParseOID(u_char responsePacket[], int *index);
-
-/*
- 	SNMP Get-next-request
- */
-int MakeSnmpGetNextRequest(u_char requestPacket[], char *community, u_int oid[], int oidLen);
 
 /*
 	Get Interface Num
@@ -53,9 +54,9 @@ int MakeSnmpGetNextRequest(u_char requestPacket[], char *community, u_int oid[],
 int GetInterfaceNum(int *sock, struct sockaddr_in *servAddr, char *community);
 
 /*
-	Get Interface Index
+	Get All Interface Index
  */
-int GetInterfaceIndex(int *sock, struct sockaddr_in *servAddr, char *community, int *indexArr, int ifNum);
+int GetAllInterfaceIndex(int *sock, struct sockaddr_in *servAddr, char *community, int *indexArr, int ifNum);
 
 /*
 	Get Interface Descriptor
@@ -71,6 +72,11 @@ void GetInterfaceMTU(int *sock, struct sockaddr_in *servAddr, char *community, i
 	Get Interface Bandwidth
  */
 void GetInterfaceBandwidth(int *sock, struct sockaddr_in *servAddr, char *community, int ifIndex);
+
+/*
+	Get Interface LinkStatus
+ */
+void GetInterfaceLinkStatus(int *sock, struct sockaddr_in *servAddr, char *community, int ifIndex, int *state);
 
 /*
 	Get Interface InOctets

@@ -7,7 +7,7 @@
 #include <arpa/inet.h>
 #include <errno.h>
 
-#include "func.h"
+#include "mysnmp.h"
 
 int main(int argc, char *argv[]) 
 { 
@@ -32,7 +32,7 @@ int main(int argc, char *argv[])
 	}
 
 	int *ifIndex = (int*)malloc(sizeof(int)*ifNum);
-	if(GetInterfaceIndex(&sock, &servAddr, community, ifIndex, ifNum) == -1) {
+	if(GetAllInterfaceIndex(&sock, &servAddr, community, ifIndex, ifNum) == -1) {
 		fprintf(stderr, "GetInterfaceIndex() error\n");
 	}
 
@@ -41,16 +41,23 @@ int main(int argc, char *argv[])
 	printf("----------------------------------------------------\n");
 
 
-	for(int i=0; i<ifNum; i++) {
-		printf("     Interface %d's Information\n", i+1);
-		printf("----------------------------------------------------\n");
-		GetInterfaceDesc(&sock, &servAddr, community, ifIndex[i]);
-		GetInterfaceMacAddr(&sock, &servAddr, community, ifIndex[i]);
-		GetInterfaceMTU(&sock, &servAddr, community, ifIndex[i]);
-		GetInterfaceBandwidth(&sock, &servAddr, community, ifIndex[i]);
-		GetInterfaceInOctet(&sock, &servAddr, community, ifIndex[i]);
-		GetInterfaceOutOctet(&sock, &servAddr, community, ifIndex[i]);
-		printf("----------------------------------------------------\n");
+	for(int i=0; i<ifNum; i++) 
+	{
+		int linkStatus;
+		GetInterfaceLinkStatus(&sock, &servAddr, community, ifIndex[i], &linkStatus);
+		
+		if(linkStatus == 1)
+		{
+			printf("     Interface %d's Information\n", i+1);
+			printf("----------------------------------------------------\n");
+			GetInterfaceDesc(&sock, &servAddr, community, ifIndex[i]);
+			GetInterfaceMacAddr(&sock, &servAddr, community, ifIndex[i]);
+			GetInterfaceMTU(&sock, &servAddr, community, ifIndex[i]);
+			GetInterfaceBandwidth(&sock, &servAddr, community, ifIndex[i]);
+			GetInterfaceInOctet(&sock, &servAddr, community, ifIndex[i]);
+			GetInterfaceOutOctet(&sock, &servAddr, community, ifIndex[i]);
+			printf("----------------------------------------------------\n");
+		}
 	}
 
 	free(community);

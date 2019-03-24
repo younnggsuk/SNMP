@@ -7,7 +7,7 @@
 #include <arpa/inet.h>
 #include <errno.h>
 
-#include "func.h"
+#include "mysnmp.h"
 
 /*
  	Socket
@@ -28,10 +28,9 @@ void MakeUDPSocket(int *sock, struct sockaddr_in *servAddr, char *ipAddr)
 /*
  	SNMP Get-request
  */
-int MakeSnmpGetRequest(u_char requestPacket[], char *community, u_int oid[], int oidLen)
+int MakeSnmpGetRequest(u_char requestPacket[], char *community, u_int oid[], int oidLen, u_int reqId)
 {
 	int commLen = strlen(community);
-	u_int reqId = rand();
 	int index = 0;
 
 	memset(requestPacket, '\0', BUF_MAX);
@@ -99,6 +98,78 @@ int MakeSnmpGetRequest(u_char requestPacket[], char *community, u_int oid[], int
 	return index;
 }
 
+/*
+ 	SNMP Get-next-request
+ */
+int MakeSnmpGetNextRequest(u_char requestPacket[], char *community, u_int oid[], int oidLen, u_int reqId)
+{
+	int commLen = strlen(community);
+	int index = 0;
+
+	memset(requestPacket, '\0', BUF_MAX);
+
+	// ASN.1 Header
+	requestPacket[index++] = 0x30;
+
+	// PDU_length (total length)
+	requestPacket[index++] = 0x1a + commLen + oidLen;
+
+	// SNMP version
+	requestPacket[index++] = 0x02; 		// integer(2) 
+	requestPacket[index++] = 0x01; 		// length = 1
+	requestPacket[index++] = 0x01; 		// snmp v2c (v1 : 0x00)
+
+	// Community information
+	requestPacket[index++] = 0x04;				  	  // string(4)
+	requestPacket[index++] = commLen; 				  // community len
+	memcpy(&requestPacket[index], community, commLen); // community string
+	index += commLen;
+
+	// SNMP GET request
+	requestPacket[index++] = 0xa1; 		// request type (0xa1)
+	requestPacket[index++] = oidLen+19;  // request length
+	
+	// Request ID
+	requestPacket[index++] = 0x02;
+	requestPacket[index++] = 0x04;
+	requestPacket[index++] = (u_char)((reqId>>24) & 0xff);
+	requestPacket[index++] = (u_char)((reqId>>16) & 0xff);
+	requestPacket[index++] = (u_char)((reqId>>8) & 0xff);
+	requestPacket[index++] = (u_char)((reqId>>0) & 0xff);
+
+	// Error status
+	requestPacket[index++] = 0x02; 		// Integer(2)
+	requestPacket[index++] = 0x01; 		// len(1)
+	requestPacket[index++] = 0x00; 		// Error status(0)
+
+	// Error index
+	requestPacket[index++] = 0x02; 		// Integer(2)
+	requestPacket[index++] = 0x01; 		// len(1)
+	requestPacket[index++] = 0x00; 		// Error index(0)
+
+	// Variable Binding sequence
+	requestPacket[index++] = 0x30; 		// variable binding start
+	requestPacket[index++] = oidLen+5; 	// variable binding sequence len
+
+	// First Variable Binding sequence
+	requestPacket[index++] = 0x30;		// first variable binding sequence start
+	requestPacket[index++] = oidLen+3; 	// first variable binding sequence len
+
+	// Object ID
+	requestPacket[index++] = 0x06; 		// object type
+	requestPacket[index++] = oidLen-1; 	// OID len after 1.
+	requestPacket[index++] = 0x2b; 		// start of OID(replace 1.3)
+	
+	for(int i=0; i<oidLen-2; i++) {
+		requestPacket[index++] = (u_char)(oid[i+2]);
+	}
+
+	// End of SNMP Get-request
+	requestPacket[index++] = 0x05;
+	requestPacket[index++] = 0x00;
+
+	return index;
+}
 
 int ConvertOID(char *oidStr, u_int oid[])
 {
@@ -126,7 +197,7 @@ int ConvertOID(char *oidStr, u_int oid[])
 /* 
     SNMP Get-response
  */
-int ParseSnmpGetResponse(u_char responsePacket[], int recvLen, u_char recvData[])
+int ParseSnmpGetResponse(u_char responsePacket[], int recvLen, u_char recvData[], u_int reqId)
 {
 	int index = 0;
 
@@ -135,7 +206,7 @@ int ParseSnmpGetResponse(u_char responsePacket[], int recvLen, u_char recvData[]
 	if(ParseVersion(responsePacket, &index) == -1) 				{ return -1; }
 	if(ParseCommunity(responsePacket, &index) == -1) 			{ return -1; }
 	if(ParseResponse(responsePacket, recvLen, &index) == -1)	{ return -1; }
-	if(ParseRequestId(responsePacket,&index) == -1) 			{ return -1; }
+	if(ParseRequestId(responsePacket, &index, reqId) == -1) 	{ return -1; }
 	if(ParseErrorStatus(responsePacket,&index) == -1) 			{ return -1; }
 	if(ParseErrorIndex(responsePacket, &index) == -1) 		 	{ return -1; }
 	if(ParseVarBindingSequence(responsePacket, &index) == -1)	{ return -1; }
@@ -215,7 +286,7 @@ int ParseResponse(u_char responsePacket[], int recvLen, int *index)
 	fprintf(stderr, "Parse Response Error\n");
 	return -1;
 }
-int ParseRequestId(u_char responsePacket[], int *index)
+int ParseRequestId(u_char responsePacket[], int *index, u_int reqId)
 {
 	if(responsePacket[(*index)++] == 0x02) 
 	{
@@ -225,7 +296,12 @@ int ParseRequestId(u_char responsePacket[], int *index)
 		for(int i=0; i<idLen; i++) {
 			buf[idLen-i-1] = responsePacket[(*index)++];
 		}
-		//printf("Request ID : %u\n", *((u_int*)buf));
+	
+		// check request id
+		if(*((u_int*)buf) != reqId) {
+			return -1;
+		}
+
 		free(buf);
 		return 0;
 	}
@@ -308,124 +384,6 @@ int ParseOID(u_char responsePacket[], int *index)
 }
 
 /*
- 	SNMP Get-next-request
- */
-int MakeSnmpGetNextRequest(u_char requestPacket[], char *community, u_int oid[], int oidLen)
-{
-	int commLen = strlen(community);
-	u_int reqId = rand();
-	int index = 0;
-
-	memset(requestPacket, '\0', BUF_MAX);
-
-	// ASN.1 Header
-	requestPacket[index++] = 0x30;
-
-	// PDU_length (total length)
-	requestPacket[index++] = 0x1a + commLen + oidLen;
-
-	// SNMP version
-	requestPacket[index++] = 0x02; 		// integer(2) 
-	requestPacket[index++] = 0x01; 		// length = 1
-	requestPacket[index++] = 0x01; 		// snmp v2c (v1 : 0x00)
-
-	// Community information
-	requestPacket[index++] = 0x04;				  	  // string(4)
-	requestPacket[index++] = commLen; 				  // community len
-	memcpy(&requestPacket[index], community, commLen); // community string
-	index += commLen;
-
-	// SNMP GET request
-	requestPacket[index++] = 0xa1; 		// request type (0xa1)
-	requestPacket[index++] = oidLen+19;  // request length
-	
-	// Request ID
-	requestPacket[index++] = 0x02;
-	requestPacket[index++] = 0x04;
-	requestPacket[index++] = (u_char)((reqId>>24) & 0xff);
-	requestPacket[index++] = (u_char)((reqId>>16) & 0xff);
-	requestPacket[index++] = (u_char)((reqId>>8) & 0xff);
-	requestPacket[index++] = (u_char)((reqId>>0) & 0xff);
-
-	// Error status
-	requestPacket[index++] = 0x02; 		// Integer(2)
-	requestPacket[index++] = 0x01; 		// len(1)
-	requestPacket[index++] = 0x00; 		// Error status(0)
-
-	// Error index
-	requestPacket[index++] = 0x02; 		// Integer(2)
-	requestPacket[index++] = 0x01; 		// len(1)
-	requestPacket[index++] = 0x00; 		// Error index(0)
-
-	// Variable Binding sequence
-	requestPacket[index++] = 0x30; 		// variable binding start
-	requestPacket[index++] = oidLen+5; 	// variable binding sequence len
-
-	// First Variable Binding sequence
-	requestPacket[index++] = 0x30;		// first variable binding sequence start
-	requestPacket[index++] = oidLen+3; 	// first variable binding sequence len
-
-	// Object ID
-	requestPacket[index++] = 0x06; 		// object type
-	requestPacket[index++] = oidLen-1; 	// OID len after 1.
-	requestPacket[index++] = 0x2b; 		// start of OID(replace 1.3)
-	
-	for(int i=0; i<oidLen-2; i++) {
-		requestPacket[index++] = (u_char)(oid[i+2]);
-	}
-
-	// End of SNMP Get-request
-	requestPacket[index++] = 0x05;
-	requestPacket[index++] = 0x00;
-
-	return index;
-}
-
-/*
-	Get Interface Index
- */
-int GetInterfaceIndex(int *sock, struct sockaddr_in *servAddr, char *community, int *indexArr, int ifNum)
-{
-	int packetLen, oidLen, recvLen;
-	u_int  addrLen;
-	u_char requestPacket[BUF_MAX] = { '\0', };
-	u_char responsePacket[BUF_MAX] = { '\0', };
-	u_char recvData[BUF_MAX] = { '\0', };
-
-	addrLen = sizeof(*servAddr);
-	u_int oid[OID_MAX] = { 0, };
-	oidLen = ConvertOID(OID_INTERFACE_INDEX, oid);
-
-	for(int i=0; i<ifNum; i++)
-	{
-		packetLen = MakeSnmpGetNextRequest(requestPacket, community, oid, oidLen);
-		sendto(*sock, requestPacket, packetLen, 0, (struct sockaddr*)servAddr, sizeof(*servAddr)); 
-		recvLen = recvfrom(*sock, responsePacket, BUF_MAX, 0, (struct sockaddr*)servAddr, &addrLen);
-
-		if(recvLen < 0) {
-			printf("recvfrom() error\n");
-		}
-
-		if(ParseSnmpGetResponse(responsePacket, recvLen, recvData) < 0) {
-			printf("ParseSnmpGetResponse() Error \n");
-		}
-		
-		if(recvData[0] == 2) 
-		{
-			if(recvData[1] == 1) 
-			{
-				indexArr[i] = recvData[2];
-				oidLen = ConvertOID(OID_INTERFACE_INDEX, oid);
-				oid[oidLen++] = recvData[2];
-				continue;
-			}
-		}
-		return -1;
-	}
-	return 0;
-}
-
-/*
 	Get Interface Number
  */
 int GetInterfaceNum(int *sock, struct sockaddr_in *servAddr, char *community)
@@ -435,12 +393,13 @@ int GetInterfaceNum(int *sock, struct sockaddr_in *servAddr, char *community)
 	u_char requestPacket[BUF_MAX] = { '\0', };
 	u_char responsePacket[BUF_MAX] = { '\0', };
 	u_char recvData[BUF_MAX] = { '\0', };
+	u_int reqId = rand();
 
 	addrLen = sizeof(*servAddr);
 	u_int oid[OID_MAX] = { 0, };
 	oidLen = ConvertOID(OID_INTERFACE_NUM, oid);
 
-	packetLen = MakeSnmpGetRequest(requestPacket, community, oid, oidLen);
+	packetLen = MakeSnmpGetRequest(requestPacket, community, oid, oidLen, reqId);
 	sendto(*sock, requestPacket, packetLen, 0, (struct sockaddr*)servAddr, sizeof(*servAddr)); 
 	recvLen = recvfrom(*sock, responsePacket, BUF_MAX, 0, (struct sockaddr*)servAddr, &addrLen);
 
@@ -448,7 +407,7 @@ int GetInterfaceNum(int *sock, struct sockaddr_in *servAddr, char *community)
 		printf("recvfrom() error\n");
 	}
 
-	if(ParseSnmpGetResponse(responsePacket, recvLen, recvData) < 0) {
+	if(ParseSnmpGetResponse(responsePacket, recvLen, recvData, reqId) < 0) {
 		printf("ParseSnmpGetResponse() Error \n");
 	}
 	
@@ -462,6 +421,55 @@ int GetInterfaceNum(int *sock, struct sockaddr_in *servAddr, char *community)
 }
 
 /*
+	Get All Interface Index
+ */
+int GetAllInterfaceIndex(int *sock, struct sockaddr_in *servAddr, char *community, int *indexArr, int ifNum)
+{
+	int packetLen, oidLen, recvLen;
+	u_int  addrLen;
+	u_char requestPacket[BUF_MAX] = { '\0', };
+	u_char responsePacket[BUF_MAX] = { '\0', };
+	u_char recvData[BUF_MAX] = { '\0', };
+	u_int reqId = rand();
+
+	addrLen = sizeof(*servAddr);
+	u_int oid[OID_MAX] = { 0, };
+	oidLen = ConvertOID(OID_INTERFACE_INDEX, oid);
+
+	for(int i=0; i<ifNum; i++)
+	{
+		packetLen = MakeSnmpGetNextRequest(requestPacket, community, oid, oidLen, reqId);
+		sendto(*sock, requestPacket, packetLen, 0, (struct sockaddr*)servAddr, sizeof(*servAddr)); 
+		recvLen = recvfrom(*sock, responsePacket, BUF_MAX, 0, (struct sockaddr*)servAddr, &addrLen);
+
+		if(recvLen < 0) {
+			printf("recvfrom() error\n");
+		}
+
+		if(ParseSnmpGetResponse(responsePacket, recvLen, recvData, reqId) < 0) {
+			printf("ParseSnmpGetResponse() Error \n");
+		}
+	
+		int index = 0;
+		int type = recvData[index++];
+		int len = recvData[index++];
+		if(type == 2)
+		{
+			if(len == 1)
+			{
+				indexArr[i] = recvData[2];
+				oidLen = ConvertOID(OID_INTERFACE_INDEX, oid);
+				oid[oidLen++] = recvData[2];
+				reqId++;
+				continue;
+			}
+		}
+		return -1;
+	}
+	return 0;
+}
+
+/*
 	Get Interface Descriptor
  */
 void GetInterfaceDesc(int *sock, struct sockaddr_in *servAddr, char *community, int ifIndex)
@@ -471,14 +479,14 @@ void GetInterfaceDesc(int *sock, struct sockaddr_in *servAddr, char *community, 
 	u_char requestPacket[BUF_MAX] = { '\0', };
 	u_char responsePacket[BUF_MAX] = { '\0', };
 	u_char recvData[BUF_MAX] = { '\0', };
+	u_int reqId = rand();
 
 	addrLen = sizeof(*servAddr);
 	u_int oid[OID_MAX] = { 0, };
 	oidLen = ConvertOID(OID_INTERFACE_DESC, oid);
 	oid[oidLen++] = (u_int)ifIndex;
 
-	packetLen = MakeSnmpGetRequest(requestPacket, community, oid, oidLen);
-	
+	packetLen = MakeSnmpGetRequest(requestPacket, community, oid, oidLen, reqId);
 	sendto(*sock, requestPacket, packetLen, 0, (struct sockaddr*)servAddr, sizeof(*servAddr));
 	recvLen = recvfrom(*sock, responsePacket, BUF_MAX, 0, (struct sockaddr*)servAddr, &addrLen); 
 
@@ -486,7 +494,7 @@ void GetInterfaceDesc(int *sock, struct sockaddr_in *servAddr, char *community, 
 		printf("recvfrom() error\n");
 	}
 
-	if(ParseSnmpGetResponse(responsePacket, recvLen, recvData) < 0) {
+	if(ParseSnmpGetResponse(responsePacket, recvLen, recvData, reqId) < 0) {
 		printf("ParseSnmpGetResponse() Error \n");
 	}
 
@@ -514,13 +522,14 @@ void GetInterfaceMTU(int *sock, struct sockaddr_in *servAddr, char *community, i
 	u_char requestPacket[BUF_MAX] = { '\0', };
 	u_char responsePacket[BUF_MAX] = { '\0', };
 	u_char recvData[BUF_MAX] = { '\0', };
+	u_int reqId = rand();
 
 	addrLen = sizeof(*servAddr);
 	u_int oid[OID_MAX] = { 0, };
 	oidLen = ConvertOID(OID_INTERFACE_MTU, oid);
 	oid[oidLen++] = (u_int)ifIndex;
 
-	packetLen = MakeSnmpGetRequest(requestPacket, community, oid, oidLen);
+	packetLen = MakeSnmpGetRequest(requestPacket, community, oid, oidLen, reqId);
 	sendto(*sock, requestPacket, packetLen, 0, (struct sockaddr*)servAddr, sizeof(*servAddr)); 
 	recvLen = recvfrom(*sock, responsePacket, BUF_MAX, 0, (struct sockaddr*)servAddr, &addrLen); 
 	
@@ -528,7 +537,7 @@ void GetInterfaceMTU(int *sock, struct sockaddr_in *servAddr, char *community, i
 		printf("recvfrom() error\n");
 	}
 
-	if(ParseSnmpGetResponse(responsePacket, recvLen, recvData) < 0) {
+	if(ParseSnmpGetResponse(responsePacket, recvLen, recvData, reqId) < 0) {
 		printf("ParseSnmpGetResponse() Error \n");
 	}
 
@@ -557,13 +566,14 @@ void GetInterfaceBandwidth(int *sock, struct sockaddr_in *servAddr, char *commun
 	u_char requestPacket[BUF_MAX] = { '\0', };
 	u_char responsePacket[BUF_MAX] = { '\0', };
 	u_char recvData[BUF_MAX] = { '\0', };
+	u_int reqId = rand();
 
 	addrLen = sizeof(*servAddr);
 	u_int oid[OID_MAX] = { 0, };
 	oidLen = ConvertOID(OID_INTERFACE_BANDWIDTH, oid);
 	oid[oidLen++] = (u_int)ifIndex;
 
-	packetLen = MakeSnmpGetRequest(requestPacket, community, oid, oidLen);
+	packetLen = MakeSnmpGetRequest(requestPacket, community, oid, oidLen, reqId);
 	sendto(*sock, requestPacket, packetLen, 0, (struct sockaddr*)servAddr, sizeof(*servAddr)); 
 	recvLen = recvfrom(*sock, responsePacket, BUF_MAX, 0, (struct sockaddr*)servAddr, &addrLen); 
 	
@@ -571,7 +581,7 @@ void GetInterfaceBandwidth(int *sock, struct sockaddr_in *servAddr, char *commun
 		printf("recvfrom() error\n");
 	}
 
-	if(ParseSnmpGetResponse(responsePacket, recvLen, recvData) < 0) {
+	if(ParseSnmpGetResponse(responsePacket, recvLen, recvData, reqId) < 0) {
 		printf("ParseSnmpGetResponse() Error \n");
 	}
 	
@@ -591,6 +601,47 @@ void GetInterfaceBandwidth(int *sock, struct sockaddr_in *servAddr, char *commun
 }
 
 /*
+	Get Interface LinkStatus
+ */
+void GetInterfaceLinkStatus(int *sock, struct sockaddr_in *servAddr, char *community, int ifIndex, int *state)
+{
+	int packetLen, oidLen, recvLen;
+	u_int  addrLen;
+	u_char requestPacket[BUF_MAX] = { '\0', };
+	u_char responsePacket[BUF_MAX] = { '\0', };
+	u_char recvData[BUF_MAX] = { '\0', };
+	u_int reqId = rand();
+
+	addrLen = sizeof(*servAddr);
+	u_int oid[OID_MAX] = { 0, };
+	oidLen = ConvertOID(OID_INTERFACE_LINK_STATUS, oid);
+	oid[oidLen++] = (u_int)ifIndex;
+
+	packetLen = MakeSnmpGetRequest(requestPacket, community, oid, oidLen, reqId);
+	sendto(*sock, requestPacket, packetLen, 0, (struct sockaddr*)servAddr, sizeof(*servAddr)); 
+	recvLen = recvfrom(*sock, responsePacket, BUF_MAX, 0, (struct sockaddr*)servAddr, &addrLen); 
+	
+	if(recvLen < 0) {
+		printf("recvfrom() error\n");
+	}
+
+	if(ParseSnmpGetResponse(responsePacket, recvLen, recvData, reqId) < 0) {
+		printf("ParseSnmpGetResponse() Error \n");
+	}
+
+	int index = 0;
+	int type = recvData[index++];
+	int len = recvData[index++];
+	if(type == 0x02)
+	{
+		if(len == 0x01)
+		{
+			*state = recvData[index];
+		}
+	}
+}
+
+/*
 	Get Interface InOctets
  */
 void GetInterfaceInOctet(int *sock, struct sockaddr_in *servAddr, char *community, int ifIndex)
@@ -600,13 +651,14 @@ void GetInterfaceInOctet(int *sock, struct sockaddr_in *servAddr, char *communit
 	u_char requestPacket[BUF_MAX] = { '\0', };
 	u_char responsePacket[BUF_MAX] = { '\0', };
 	u_char recvData[BUF_MAX] = { '\0', };
+	u_int reqId = rand();
 
 	addrLen = sizeof(*servAddr);
 	u_int oid[OID_MAX] = { 0, };
 	oidLen = ConvertOID(OID_INTERFACE_IN_OCTETS, oid);
 	oid[oidLen++] = (u_int)ifIndex;
 
-	packetLen = MakeSnmpGetRequest(requestPacket, community, oid, oidLen);
+	packetLen = MakeSnmpGetRequest(requestPacket, community, oid, oidLen, reqId);
 	sendto(*sock, requestPacket, packetLen, 0, (struct sockaddr*)servAddr, sizeof(*servAddr)); 
 	recvLen = recvfrom(*sock, responsePacket, BUF_MAX, 0, (struct sockaddr*)servAddr, &addrLen); 
 	
@@ -614,7 +666,7 @@ void GetInterfaceInOctet(int *sock, struct sockaddr_in *servAddr, char *communit
 		printf("recvfrom() error\n");
 	}
 
-	if(ParseSnmpGetResponse(responsePacket, recvLen, recvData) < 0) {
+	if(ParseSnmpGetResponse(responsePacket, recvLen, recvData, reqId) < 0) {
 		printf("ParseSnmpGetResponse() Error \n");
 	}
 	
@@ -643,13 +695,14 @@ void GetInterfaceOutOctet(int *sock, struct sockaddr_in *servAddr, char *communi
 	u_char requestPacket[BUF_MAX] = { '\0', };
 	u_char responsePacket[BUF_MAX] = { '\0', };
 	u_char recvData[BUF_MAX] = { '\0', };
+	u_int reqId = rand();
 
 	addrLen = sizeof(*servAddr);
 	u_int oid[OID_MAX] = { 0, };
 	oidLen = ConvertOID(OID_INTERFACE_OUT_OCTETS, oid);
 	oid[oidLen++] = (u_int)ifIndex;
 
-	packetLen = MakeSnmpGetRequest(requestPacket, community, oid, oidLen);
+	packetLen = MakeSnmpGetRequest(requestPacket, community, oid, oidLen, reqId);
 	sendto(*sock, requestPacket, packetLen, 0, (struct sockaddr*)servAddr, sizeof(*servAddr)); 
 	recvLen = recvfrom(*sock, responsePacket, BUF_MAX, 0, (struct sockaddr*)servAddr, &addrLen); 
 	
@@ -657,7 +710,7 @@ void GetInterfaceOutOctet(int *sock, struct sockaddr_in *servAddr, char *communi
 		printf("recvfrom() error\n");
 	}
 
-	if(ParseSnmpGetResponse(responsePacket, recvLen, recvData) < 0) {
+	if(ParseSnmpGetResponse(responsePacket, recvLen, recvData, reqId) < 0) {
 		printf("ParseSnmpGetResponse() Error \n");
 	}
 	
@@ -686,13 +739,14 @@ void GetInterfaceMacAddr(int *sock, struct sockaddr_in *servAddr, char *communit
 	u_char requestPacket[BUF_MAX] = { '\0', };
 	u_char responsePacket[BUF_MAX] = { '\0', };
 	u_char recvData[BUF_MAX] = { '\0', };
+	u_int reqId = rand();
 
 	addrLen = sizeof(*servAddr);
 	u_int oid[OID_MAX] = { 0, };
 	oidLen = ConvertOID(OID_INTERFACE_MAC_ADDR, oid);
 	oid[oidLen++] = (u_int)ifIndex;
 
-	packetLen = MakeSnmpGetRequest(requestPacket, community, oid, oidLen);
+	packetLen = MakeSnmpGetRequest(requestPacket, community, oid, oidLen, reqId);
 	sendto(*sock, requestPacket, packetLen, 0, (struct sockaddr*)servAddr, sizeof(*servAddr)); 
 	recvLen = recvfrom(*sock, responsePacket, BUF_MAX, 0, (struct sockaddr*)servAddr, &addrLen); 
 	
@@ -700,7 +754,7 @@ void GetInterfaceMacAddr(int *sock, struct sockaddr_in *servAddr, char *communit
 		printf("recvfrom() error\n");
 	}
 
-	if(ParseSnmpGetResponse(responsePacket, recvLen, recvData) < 0) {
+	if(ParseSnmpGetResponse(responsePacket, recvLen, recvData, reqId) < 0) {
 		printf("ParseSnmpGetResponse() Error \n");
 	}
 
