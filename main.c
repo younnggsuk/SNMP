@@ -29,11 +29,13 @@ int main(int argc, char *argv[])
 	int ifNum = GetInterfaceNum(&sock, &servAddr, community);
 	if(ifNum == -1) {
 		fprintf(stderr, "GetInterfaceNum() error\n");
+		exit(1);
 	}
 
 	int *ifIndex = (int*)malloc(sizeof(int)*ifNum);
 	if(GetAllInterfaceIndex(&sock, &servAddr, community, ifIndex, ifNum) == -1) {
 		fprintf(stderr, "GetInterfaceIndex() error\n");
+		exit(1);
 	}
 
 	printf("----------------------------------------------------\n");
