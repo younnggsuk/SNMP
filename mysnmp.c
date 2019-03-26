@@ -23,6 +23,8 @@ void MakeUDPSocket(int *sock, struct sockaddr_in *servAddr, char *ipAddr)
 	servAddr->sin_family = AF_INET; 
 	servAddr->sin_port = htons(PORT_SNMP); 
 	servAddr->sin_addr.s_addr = inet_addr(ipAddr);
+	
+	connect(*sock, (struct sockaddr*)servAddr, sizeof(*servAddr));
 }
 
 /*
@@ -164,7 +166,7 @@ int MakeSnmpGetNextRequest(u_char requestPacket[], char *community, u_int oid[],
 		requestPacket[index++] = (u_char)(oid[i+2]);
 	}
 
-	// End of SNMP Get-request
+	// End of SNMP Get-next-request
 	requestPacket[index++] = 0x05;
 	requestPacket[index++] = 0x00;
 
