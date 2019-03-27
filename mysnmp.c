@@ -777,3 +777,58 @@ void GetInterfaceMacAddr(int *sock, struct sockaddr_in *servAddr, char *communit
 	}
 	printf("\n");
 }
+
+///*
+//	Get All IP Address
+// */
+//int GetAllIpAddress(int *sock, struct sockaddr_in *servAddr, char *community, char* ipArr[], int ifNum)
+//{
+//	int packetLen, oidLen, recvLen;
+//	u_int  addrLen;
+//	u_char requestPacket[BUF_MAX] = { '\0', };
+//	u_char responsePacket[BUF_MAX] = { '\0', };
+//	u_char recvData[BUF_MAX] = { '\0', };
+//	u_int reqId = rand();
+//
+//	addrLen = sizeof(*servAddr);
+//	u_int oid[OID_MAX] = { 0, };
+//	oidLen = ConvertOID(OID_IP_ADDRESS_ENTRY_ADDR, oid);
+//
+//	for(int i=0; i<ifNum; i++)
+//	{
+//		packetLen = MakeSnmpGetNextRequest(requestPacket, community, oid, oidLen, reqId);
+//		sendto(*sock, requestPacket, packetLen, 0, (struct sockaddr*)servAddr, sizeof(*servAddr)); 
+//		recvLen = recvfrom(*sock, responsePacket, BUF_MAX, 0, (struct sockaddr*)servAddr, &addrLen);
+//
+//		if(recvLen < 0) {
+//			printf("recvfrom() error\n");
+//		}
+//
+//		if(ParseSnmpGetResponse(responsePacket, recvLen, recvData, reqId) < 0) {
+//			printf("ParseSnmpGetResponse() Error \n");
+//		}
+//	
+//		int index = 0;
+//		int type = recvData[index++];
+//		int len = recvData[index++];
+//
+//		u_char buf[4];
+//		for(int i=0; i<4; i++, index++) {
+//			buf[i] = recvData[index];
+//		}
+//
+//		if(type == 2)
+//		{
+//			if(len == 1)
+//			{
+//				indexArr[i] = recvData[2];
+//				oidLen = ConvertOID(OID_INTERFACE_INDEX, oid);
+//				oid[oidLen++] = recvData[2];
+//				reqId++;
+//				continue;
+//			}
+//		}
+//		return -1;
+//	}
+//	return 0;
+//}

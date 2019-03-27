@@ -5,6 +5,8 @@
 #define BUF_MAX 1000
 #define OID_MAX 128
 
+// interface
+
 #define OID_INTERFACE_NUM		    "1.3.6.1.2.1.2.1.0"
 #define OID_INTERFACE_INDEX		    "1.3.6.1.2.1.2.2.1.1"
 #define OID_INTERFACE_DESC 			"1.3.6.1.2.1.2.2.1.2"
@@ -15,7 +17,10 @@
 #define OID_INTERFACE_IN_OCTETS 	"1.3.6.1.2.1.2.2.1.10"
 #define OID_INTERFACE_OUT_OCTETS 	"1.3.6.1.2.1.2.2.1.16"
 
+// ip
 
+#define OID_IP_ADDRESS_ENTRY_ADDR	"1.3.6.1.2.1.4.20.1.1"
+#define OID_IP_ADDRESS_ENTRY_INDEX	"1.3.6.1.2.1.4.20.1.2"
 
 /*
  	Socket
