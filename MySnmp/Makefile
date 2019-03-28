@@ -1,7 +1,7 @@
 CC = gcc
 CFLAGS = -g -Wall
 TARGET = test
-OBJS = topology.o\
+OBJS = main.o\
 	   mysnmp.o
 
 all : $(TARGET) 
@@ -9,7 +9,7 @@ all : $(TARGET)
 $(TARGET) : $(OBJS)
 	$(CC) $(CFLAGS) -o $(TARGET) $(OBJS)
 
-topology.o : topology.c mysnmp.h
+main.o : main.c mysnmp.h
 mysnmp.o : mysnmp.c mysnmp.h
 
 clean : 
