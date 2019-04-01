@@ -1,7 +1,8 @@
 #include <libsnmp.h>
 #include <snmp_pp/snmp_pp.h>
 #include <string>
-
+#include <vector>
+#include <algorithm>
 
 using namespace Snmp_pp;
 using namespace std;
@@ -16,7 +17,7 @@ using namespace std;
 //	SnmpResult();
 //	SnmpResult(const char *_oid, const char *_value);
 //	SnmpResult(const SnmpResult &copy);
-//	void SetOid(const char *_oid);
+//	void SetOid(ceonst char *_oid);
 //	void SetValue(const char *_value);
 //	const char* GetOid() const;
 //	const char* GetValue() const;
@@ -38,7 +39,7 @@ using namespace std;
 //{
 //	oid = new char[strlen(copy.oid)+1];
 //	value = new char[strlen(copy.value)+1];
-//	strcpy(oid, copy.oid);
+//	strcpy(oid, copy.oid);e
 //	strcpy(value, copy.value);
 //}
 //void SnmpResult::SetOid(const char *_oid)
@@ -60,7 +61,7 @@ using namespace std;
 //const char* SnmpResult::GetOid() const
 //{
 //	return oid;
-//}
+//}e
 //const char* SnmpResult::GetValue() const
 //{
 //	return value;
@@ -84,34 +85,37 @@ using namespace std;
 //}
 ///////////////////////////////////////////////
 
-int SnmpGetNext(const char *ip, const char *community, Vb &vb, int depth);
-void RecursiveGet(const char *ip, const char *community, Vb &curVb, int depth);
+#define IP_ADDR_ENTRY_TABLE			"1.3.6.1.2.1.4.20.1.1"
+#define IP_NET_TO_MEDIA_NET_ADDR	"1.3.6.1.2.1.4.22.1.3"
+
+int SnmpGetNext(const char *ip, const char *community, Vb &vb, int oidIdx);
+void RecursiveGet(const char *ip, const char *community, Vb &curVb, int oidIdx);
 
 int main(int argc, char *argv[])
 {
-	Vb curVb("1.3.6.1.2.1.4.20.1.1");
-	RecursiveGet("127.0.0.1", "public", curVb, 0);
+	Oid oid(IP_ADDR_ENTRY_TABLE);
+	Vb curVb(oid);
+	RecursiveGet("127.0.0.1", "public", curVb, oid.len());
 	
+
+
 	return 0;
 }
 
-void RecursiveGet(const char *ip, const char *community, Vb &curVb, int depth)
+void RecursiveGet(const char *ip, const char *community, Vb &curVb, int oidIdx)
 {
-	int status = SnmpGetNext(ip, community, curVb, depth);
-
+	int status = SnmpGetNext(ip, community, curVb, oidIdx);
+	
 	if(status < 0) {
-		//cout<<Snmp::error_msg(status)<<endl;
+		cout<<Snmp::error_msg(status)<<endl;
 		return;
 	}
 
-	Vb hopVb("1.3.6.1.2.1.4.22.1.3");
-	RecursiveGet(curVb.get_printable_value(), community, hopVb, depth+1);
-
 	Vb nextVb(curVb.get_printable_oid());
-	RecursiveGet(curVb.get_printable_value(), community, nextVb, depth);
+	RecursiveGet(curVb.get_printable_value(), community, nextVb, oidIdx);
 }
 
-int SnmpGetNext(const char *ip, const char *community, Vb &vb, int depth)
+int SnmpGetNext(const char *ip, const char *community, Vb &vb, int oidIdx)
 {
 	int status;
 
@@ -128,16 +132,14 @@ int SnmpGetNext(const char *ip, const char *community, Vb &vb, int depth)
 	if((status = snmp.get_next(pdu, ctarget)) != SNMP_CLASS_SUCCESS){
 		return status;
 	}
-	pdu.get_vb(vb, 0);
-	
-	for(int i=0; i<depth; i++) {
-		cout<<'\t';
-	}
-	cout<<vb.get_printable_oid()<<endl;
 
-	for(int i=0; i<depth; i++) {
-		cout<<'\t';
-	}
+	auto cur = vb.get_printable_oid()[oidIdx+1];
+	pdu.get_vb(vb, 0);
+	auto next = vb.get_printable_oid()[oidIdx+1];
+
+	cout<<"cur : "<<cur<<", "<<next<<endl;
+
+	cout<<vb.get_printable_oid()<<endl;
 	cout<<vb.get_printable_value()<<endl;
 
 	return 0;
