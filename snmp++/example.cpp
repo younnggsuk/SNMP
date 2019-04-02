@@ -35,6 +35,13 @@ int main(int argc, char *argv[])
 		cout<<"-------------------------------------"<<endl;
 	}
 
+	for(auto i : arr) {
+		cout<<i<<endl;
+	}
+	for(auto i : hops) {
+		cout<<i<<endl;
+	}
+
 	return 0;
 }
 
