@@ -35,7 +35,7 @@ int main(int argc, char *argv[])
 		cout<<"-------------------------------------"<<endl;
 	}
 
-	for(auto i : arr) {
+	for(auto i : ipAddr) {
 		cout<<i<<endl;
 	}
 	for(auto i : hops) {
