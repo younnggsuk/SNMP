@@ -38,8 +38,10 @@ int main(int argc, char *argv[])
 	}
 
 	for(auto i : arr) {
+
 		cout<<i<<endl;
 	}
+
 	return 0;
 }
 
