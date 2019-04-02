@@ -27,10 +27,10 @@ int main(int argc, char *argv[])
 
 	cout<<endl<<endl;
 
-	Vb nextVb(IP_NET_TO_MEDIA_NET_ADDR);
-	if((status = SnmpGetNext(argv[1], argv[2], nextVb, strlen(nextVb.get_printable_oid()))) < 0) {
-		Snmp::error_msg(status);
-	}
+//	Vb nextVb(IP_NET_TO_MEDIA_NET_ADDR);
+//	if((status = SnmpGetNext(argv[1], argv[2], nextVb, strlen(nextVb.get_printable_oid()))) < 0) {
+//		Snmp::error_msg(status);
+//	}
 
 	return 0;
 }
