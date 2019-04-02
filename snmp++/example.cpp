@@ -10,7 +10,7 @@ using namespace std;
 #define IP_ADDR_ENTRY_TABLE			"1.3.6.1.2.1.4.20.1.1"
 #define IP_NET_TO_MEDIA_NET_ADDR	"1.3.6.1.2.1.4.22.1.3"
 
-int SnmpGetNext(const char *ip, const char *community, Vb &vb, int len);
+int SnmpGetNext(const char *ip, const char *community, Vb &vb, int len, vector<string> &arr);
 
 int main(int argc, char *argv[])
 {
@@ -19,23 +19,32 @@ int main(int argc, char *argv[])
 		return 0;
 	}
 
+	vector<string> arr;
+
 	int status;
 	Vb curVb(IP_ADDR_ENTRY_TABLE);
-	if((status = SnmpGetNext("127.0.0.1", argv[2], curVb, strlen(curVb.get_printable_oid()))) < 0) {
+	if((status = SnmpGetNext("127.0.0.1", argv[2], curVb, strlen(curVb.get_printable_oid()), arr)) < 0) {
 		Snmp::error_msg(status);
 	}
 
 	cout<<endl<<endl;
 
 	Vb nextVb(IP_NET_TO_MEDIA_NET_ADDR);
-	if((status = SnmpGetNext(argv[1], argv[2], nextVb, strlen(nextVb.get_printable_oid()))) < 0) {
-		Snmp::error_msg(status);
+	int ipNum = arr.size();
+	for(int i=0; i<ipNum; i++) {
+		if((status = SnmpGetNext(arr[i].c_str(), argv[2], nextVb, strlen(nextVb.get_printable_oid()), arr)) < 0) {
+			Snmp::error_msg(status);
+		}
+	}
+
+	for(auto i : arr) {
+		cout<<i<<endl;
 	}
 
 	return 0;
 }
 
-int SnmpGetNext(const char *ip, const char *community, Vb &vb, int len)
+int SnmpGetNext(const char *ip, const char *community, Vb &vb, int len, vector<string> &arr)
 {
 	int status;
 
@@ -45,13 +54,11 @@ int SnmpGetNext(const char *ip, const char *community, Vb &vb, int len)
 	
 	Snmp snmp(status);
 	if(status != SNMP_CLASS_SUCCESS) {
-		snmp.error_msg(status);
 		return status;
 	}
 
 	pdu += vb;
 	if((status = snmp.get_next(pdu, ctarget)) != SNMP_CLASS_SUCCESS){
-		snmp.error_msg(status);
 		return status;
 	}
 
@@ -61,11 +68,10 @@ int SnmpGetNext(const char *ip, const char *community, Vb &vb, int len)
 		return 0;
 	}
 
-	cout<<vb.get_printable_oid()<<endl;
-	cout<<vb.get_printable_value()<<endl;
+	arr.push_back(vb.get_printable_value());
 
 	Vb nextVb(vb.get_printable_oid());
-	SnmpGetNext(vb.get_printable_value(), community, nextVb, len);
+	SnmpGetNext(vb.get_printable_value(), community, nextVb, len, arr);
 
 	return 0;
 }
