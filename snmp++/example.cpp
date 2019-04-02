@@ -29,7 +29,6 @@ int main(int argc, char *argv[])
 
 	cout<<endl<<endl;
 
-<<<<<<< HEAD
 	Vb nextVb(IP_NET_TO_MEDIA_NET_ADDR);
 	int ipNum = arr.size();
 	for(int i=0; i<ipNum; i++) {
@@ -41,13 +40,6 @@ int main(int argc, char *argv[])
 	for(auto i : arr) {
 		cout<<i<<endl;
 	}
-=======
-//	Vb nextVb(IP_NET_TO_MEDIA_NET_ADDR);
-//	if((status = SnmpGetNext(argv[1], argv[2], nextVb, strlen(nextVb.get_printable_oid()))) < 0) {
-//		Snmp::error_msg(status);
-//	}
->>>>>>> 39349f746f250018bacc6880110d161fe299d7f2
-
 	return 0;
 }
 
