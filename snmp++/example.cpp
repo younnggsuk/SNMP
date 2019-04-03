@@ -2,6 +2,7 @@
 #include <snmp_pp/snmp_pp.h>
 #include <string>
 #include <vector>
+#include <map>
 #include <algorithm>
 
 using namespace Snmp_pp;
@@ -22,24 +23,28 @@ int main(int argc, char *argv[])
 	vector<string> ipAddr;
 	Oid oid(IP_ADDR_ENTRY_TABLE);
 	Vb vb(oid);
-	SnmpGetNext(argv[1], argv[2], vb, ipAddr);
-	cout<<"-------------------------------------"<<endl;
-	cout<<"-------------------------------------"<<endl;
+	if(SnmpGetNext(argv[1], argv[2], vb, ipAddr) < 0) {
+		cout<<"SnmpGetNextError"<<endl;
+		return 0;
+	}
+	
+	map<string, string> l1;
+	for(auto i : ipAddr) {
+		l1[i] = "";
+	}
 
-	vector<string> hops;
 	Oid oid2(IP_NET_TO_MEDIA_NET_ADDR);
 	Vb vb2(oid2);
 	for(auto i : ipAddr) {
-		SnmpGetNext(i.c_str(), argv[2], vb2, hops);
-		cout<<"-------------------------------------"<<endl;
-		cout<<"-------------------------------------"<<endl;
+		vector<string> buf;
+		SnmpGetNext(i.c_str(), argv[2], vb2, buf);
+		cout<<i<<' ';
+		l1[i] = buf.back();
 	}
+	cout<<endl;
 
-	for(auto i : ipAddr) {
-		cout<<i<<endl;
-	}
-	for(auto i : hops) {
-		cout<<i<<endl;
+	for(auto i = l1.begin(); i != l1.end(); i++) {
+		cout<<(*i).first<<"-->>"<<(*i).second<<endl;
 	}
 
 	return 0;
