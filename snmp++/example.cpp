@@ -27,6 +27,11 @@ int main(int argc, char *argv[])
 	vector<string> nextIp;
 	GetAllNextIp(argv[1], argv[2], nextIp);
 
+	vector<string> nextIp2;
+	for(auto i : nextIp) {
+		GetAllNextIp(i.c_str(), argv[2], nextIp2);
+	}
+
 	for(auto i : nextIp) {
 		cout<<i<<endl;
 	}
