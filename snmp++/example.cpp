@@ -16,6 +16,7 @@ using namespace std;
 
 int SnmpGetNext(const char *ip, const char *community, Vb &vb, vector<string> &buf);
 void GetAllNextIp(const char *ip, const char *community, vector<string> &buf);
+void RecursiveGetAllNextIp(const char *ip, const char *community, vector<pair<int, string>> &buf, int depth); 
 
 int main(int argc, char *argv[])
 {
@@ -24,19 +25,46 @@ int main(int argc, char *argv[])
 		return 0;
 	}
 
-	vector<string> nextIp;
-	GetAllNextIp(argv[1], argv[2], nextIp);
+	vector<pair<int, string>> allIp;
+	RecursiveGetAllNextIp(argv[1], argv[2], allIp, 0);
 
-	vector<string> nextIp2;
-	for(auto i : nextIp) {
-		GetAllNextIp(i.c_str(), argv[2], nextIp2);
+	for(auto i : allIp) {
+		for(int count=0; count<i.first; count++) {
+			cout<<'\t';
+		}
+		cout<<i.second<<endl;
 	}
 
-	for(auto i : nextIp) {
-		cout<<i<<endl;
-	}
+//	vector<string> nextIp;
+//	GetAllNextIp(argv[1], argv[2], nextIp);
+//
+//	vector<string> nextIp2;
+//	for(auto i : nextIp) {
+//		GetAllNextIp(i.c_str(), argv[2], nextIp2);
+//	}
+//
+//	for(auto i : nextIp) {
+//		cout<<i<<endl;
+//	}
 
 	return 0;
+}
+
+void RecursiveGetAllNextIp(const char *ip, const char *community, vector<pair<int, string>> &buf, int depth) 
+{
+	vector<string> nextIp;
+	GetAllNextIp(ip, community, nextIp);
+	if(nextIp.empty()) {
+		return;
+	}
+	
+	for(auto i : nextIp) {
+		buf.push_back(make_pair(depth, i));
+	}
+	
+	for(auto i : nextIp) {
+		RecursiveGetAllNextIp(i.c_str(), community, buf, depth+1);
+	}
 }
 
 void GetAllNextIp(const char *ip, const char *community, vector<string> &buf)
@@ -44,14 +72,12 @@ void GetAllNextIp(const char *ip, const char *community, vector<string> &buf)
 	vector<string> nextHop;
 	Vb vbHop(OID::ipRouteNextHop);
 	if(SnmpGetNext(ip, community, vbHop, nextHop) < 0) {
-		cout<<"SnmpGetNextError"<<endl;
 		return;
 	}	
 
 	vector<string> type;
 	Vb vbType(OID::ipRouteType);
 	if(SnmpGetNext(ip, community, vbType, type) < 0) {
-		cout<<"SnmpGetNextError"<<endl;
 		return;
 	}	
 
@@ -75,7 +101,7 @@ int SnmpGetNext(const char *ip, const char *community, Vb &vb, vector<string> &b
 	
 	Snmp snmp(status);
 	if(status != SNMP_CLASS_SUCCESS) {
-		snmp.error_msg(status);
+		cout<<snmp.error_msg(status)<<endl;
 		return -1;
 	}
 
@@ -91,7 +117,7 @@ int SnmpGetNext(const char *ip, const char *community, Vb &vb, vector<string> &b
 		}
 	}
 	else { 
-		snmp.error_msg(status);
+		cout<<snmp.error_msg(status)<<endl;
 		return -1;
 	}
 
