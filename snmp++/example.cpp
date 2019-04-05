@@ -40,7 +40,14 @@ int main(int argc, char *argv[])
 		vector<string> buf;
 		Vb vbNet(OID::ipNetToMediaNetAddress);
 		SnmpBulk(i.second.c_str(), argv[2], vbNet, buf);
+		for(int count=0; count<i.first; count++) {
+			cout<<'\t';
+		}
+		cout<<i.second<<endl;
 		for(auto j : buf) {
+			for(int count=0; count<i.first+1; count++) {
+				cout<<'\t';
+			}
 			cout<<j<<endl;
 		}
 		cout<<endl;
@@ -159,7 +166,7 @@ int SnmpBulk(const char *ip, const char *community, Vb &vb, vector<string> &buf)
 			if(curOid[curOid.size()-1] != vb.get_printable_oid()[curOid.size()-1]) {
 				break;
 			}
-			cout<<vb.get_printable_oid()<<' '<<vb.get_printable_value()<<endl;
+			//cout<<vb.get_printable_oid()<<' '<<vb.get_printable_value()<<endl;
 			buf.push_back(vb.get_printable_value());
 		}
 	}
