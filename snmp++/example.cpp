@@ -7,6 +7,7 @@
 
 namespace OID
 {
+	const char* ipForwarding 	= "1.3.6.1.2.1.4.1";
 	const char* ipRouteNextHop 	= "1.3.6.1.2.1.4.21.1.7";
 	const char* ipRouteType 	= "1.3.6.1.2.1.4.21.1.8";
 }
@@ -57,6 +58,9 @@ void RecursiveGetAllNextIp(const char *ip, const char *community, vector<pair<in
 	if(nextIp.empty()) {
 		return;
 	}
+	if(depth == 10) {
+		return;
+	}
 	
 	for(auto i : nextIp) {
 		buf.push_back(make_pair(depth, i));
@@ -79,14 +83,18 @@ void GetAllNextIp(const char *ip, const char *community, vector<string> &buf)
 	Vb vbType(OID::ipRouteType);
 	if(SnmpGetNext(ip, community, vbType, type) < 0) {
 		return;
-	}	
+	}
 
-	int idx = 0;
-	for(auto i : type) {
-		if(i == "4") {
-			buf.push_back(nextHop[idx]);
+	vector<string> forwarding;
+	Vb vbForwarding(OID::ipForwarding);
+	if(SnmpGetNext(ip, community, vbForwarding, forwarding) < 0) {
+		return;
+	}
+
+	for(vector<string>::size_type i=0; i<type.size(); i++) {
+		if( (type[i] == "4") && (forwarding[i] == "1") ) {
+			buf.push_back(nextHop[i]);
 		}
-		idx++;
 	}
 }
 
@@ -112,7 +120,7 @@ int SnmpGetNext(const char *ip, const char *community, Vb &vb, vector<string> &b
 			if(curOid[curOid.size()-1] != vb.get_printable_oid()[curOid.size()-1]) {
 				break;
 			}
-			//cout<<vb.get_printable_value()<<endl;
+			cout<<vb.get_printable_value()<<endl;
 			buf.push_back(vb.get_printable_value());
 		}
 	}
