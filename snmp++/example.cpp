@@ -22,7 +22,8 @@ using namespace std;
 int SnmpBulk(const char *ip, const char *community, Vb &vb, vector<string> &buf);
 int SnmpNext(const char *ip, const char *community, Vb &vb, vector<string> &buf);
 
-void GetAllNextIp(const char *ip, const char *community, vector<string> &buf);
+void GetAllIp(const char *ip, const char *community, vector<pair<int, string>> &buf);
+void GetAllRouterIp(const char *ip, const char *community, vector<string> &buf);
 void RecursiveGetAllRouterIp(const char *ip, const char *community, vector<pair<int, string>> &buf, int depth); 
 
 int main(int argc, char *argv[])
@@ -33,21 +34,7 @@ int main(int argc, char *argv[])
 	}
 
 	vector<pair<int, string>> allIp;
-
-	vector<pair<int, string>> allRouter;
-	RecursiveGetAllRouterIp(argv[1], argv[2], allRouter, 0);
-
-	for(auto i : allRouter) {
-		allIp.push_back(make_pair(i.first, i.second));
-		
-		vector<string> buf;
-		Vb vbNet(OID::ipNetToMediaNetAddress);
-		SnmpBulk(i.second.c_str(), argv[2], vbNet, buf);
-
-		for(auto j : buf) {
-			allIp.push_back(make_pair(i.first+1, j));
-		}
-	}
+	GetAllIp(argv[1], argv[2], allIp);
 
 	cout<<"-------------------------------------------------"<<endl;
 	for(auto i : allIp) {
@@ -61,10 +48,30 @@ int main(int argc, char *argv[])
 	return 0;
 }
 
+void GetAllIp(const char *ip, const char *community, vector<pair<int, string>> &buf)
+{
+	vector<pair<int, string>> allRouter;
+	RecursiveGetAllRouterIp(ip, community, allRouter, 0);
+
+	for(auto i : allRouter) {
+		buf.push_back(make_pair(i.first, i.second));
+		
+		vector<string> temp;
+		Vb vbNet(OID::ipNetToMediaNetAddress);
+		SnmpBulk(i.second.c_str(), community, vbNet, temp);
+
+		for(auto j : temp) {
+			buf.push_back(make_pair(i.first+1, j));
+		}
+	}
+	
+	
+}
+
 void RecursiveGetAllRouterIp(const char *ip, const char *community, vector<pair<int, string>> &buf, int depth) 
 {
 	vector<string> nextIp;
-	GetAllNextIp(ip, community, nextIp);
+	GetAllRouterIp(ip, community, nextIp);
 	if(nextIp.empty()) {
 		return;
 	}
@@ -78,7 +85,7 @@ void RecursiveGetAllRouterIp(const char *ip, const char *community, vector<pair<
 	}
 }
 
-void GetAllNextIp(const char *ip, const char *community, vector<string> &buf)
+void GetAllRouterIp(const char *ip, const char *community, vector<string> &buf)
 {
 	vector<string> nextHop;
 	Vb vbHop(OID::ipRouteNextHop);
@@ -95,13 +102,13 @@ void GetAllNextIp(const char *ip, const char *community, vector<string> &buf)
 	vector<string> forwarding;
 	Vb vbForwarding(OID::ipForwarding);
 	for(auto i : nextHop) {
-		vector<string> buf;
+		vector<string> temp;
 		Vb vbForwarding(OID::ipForwarding);
-		if(SnmpNext(i.c_str(), community, vbForwarding, buf) < 0) {
+		if(SnmpNext(i.c_str(), community, vbForwarding, temp) < 0) {
 			forwarding.push_back("0");
 			continue;
 		}
-		forwarding.push_back(buf[0]);
+		forwarding.push_back(temp[0]);
 	}
 
 	for(vector<string>::size_type i=0; i<type.size(); i++) {
