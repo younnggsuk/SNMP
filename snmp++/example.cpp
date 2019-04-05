@@ -7,9 +7,13 @@
 
 namespace OID
 {
-	const char* ipForwarding 	= "1.3.6.1.2.1.4.1";
-	const char* ipRouteNextHop 	= "1.3.6.1.2.1.4.21.1.7";
-	const char* ipRouteType 	= "1.3.6.1.2.1.4.21.1.8";
+	const char *ipForwarding 	= "1.3.6.1.2.1.4.1";
+	const char *ipRouteNextHop 	= "1.3.6.1.2.1.4.21.1.7";
+	const char *ipRouteType 	= "1.3.6.1.2.1.4.21.1.8";	
+	const char *ipNetToMediaNetAddress = "1.3.6.1.2.1.4.22.1.3";
+
+	const char *prtGeneralServicePerson = "1.3.6.1.2.1.43.5.1.1.5";
+	const char *prtGeneralPrinterName 	= "1.3.6.1.2.1.43.5.1.1.16";
 }
 
 using namespace Snmp_pp;
@@ -19,8 +23,7 @@ int SnmpBulk(const char *ip, const char *community, Vb &vb, vector<string> &buf)
 int SnmpNext(const char *ip, const char *community, Vb &vb, vector<string> &buf);
 
 void GetAllNextIp(const char *ip, const char *community, vector<string> &buf);
-void RecursiveGetAllNextIp(const char *ip, const char *community, 
-							vector<pair<int, string>> &buf, int depth); 
+void RecursiveGetAllRouterIp(const char *ip, const char *community, vector<pair<int, string>> &buf, int depth); 
 
 int main(int argc, char *argv[])
 {
@@ -30,33 +33,32 @@ int main(int argc, char *argv[])
 	}
 
 	vector<pair<int, string>> allIp;
-	RecursiveGetAllNextIp(argv[1], argv[2], allIp, 0);
+	RecursiveGetAllRouterIp(argv[1], argv[2], allIp, 0);
 
-	cout<<"-------------------------------------------------"<<endl;
+
 	for(auto i : allIp) {
-		for(int count=0; count<i.first; count++) {
-			cout<<'\t';
+		vector<string> buf;
+		Vb vbNet(OID::ipNetToMediaNetAddress);
+		SnmpBulk(i.second.c_str(), argv[2], vbNet, buf);
+		for(auto j : buf) {
+			cout<<j<<endl;
 		}
-		cout<<i.second<<endl;
+		cout<<endl;
 	}
-	cout<<"-------------------------------------------------"<<endl;
 
-//	vector<string> nextIp;
-//	GetAllNextIp(argv[1], argv[2], nextIp);
-//
-//	vector<string> nextIp2;
-//	for(auto i : nextIp) {
-//		GetAllNextIp(i.c_str(), argv[2], nextIp2);
+//	cout<<"-------------------------------------------------"<<endl;
+//	for(auto i : allIp) {
+//		for(int count=0; count<i.first; count++) {
+//			cout<<'\t';
+//		}
+//		cout<<i.second<<endl;
 //	}
-//
-//	for(auto i : nextIp) {
-//		cout<<i<<endl;
-//	}
+//	cout<<"-------------------------------------------------"<<endl;
 
 	return 0;
 }
 
-void RecursiveGetAllNextIp(const char *ip, const char *community, vector<pair<int, string>> &buf, int depth) 
+void RecursiveGetAllRouterIp(const char *ip, const char *community, vector<pair<int, string>> &buf, int depth) 
 {
 	vector<string> nextIp;
 	GetAllNextIp(ip, community, nextIp);
@@ -69,7 +71,7 @@ void RecursiveGetAllNextIp(const char *ip, const char *community, vector<pair<in
 	}
 	
 	for(auto i : nextIp) {
-		RecursiveGetAllNextIp(i.c_str(), community, buf, depth+1);
+		RecursiveGetAllRouterIp(i.c_str(), community, buf, depth+1);
 	}
 }
 
@@ -157,7 +159,7 @@ int SnmpBulk(const char *ip, const char *community, Vb &vb, vector<string> &buf)
 			if(curOid[curOid.size()-1] != vb.get_printable_oid()[curOid.size()-1]) {
 				break;
 			}
-			//cout<<vb.get_printable_oid()<<' '<<vb.get_printable_value()<<endl;
+			cout<<vb.get_printable_oid()<<' '<<vb.get_printable_value()<<endl;
 			buf.push_back(vb.get_printable_value());
 		}
 	}
