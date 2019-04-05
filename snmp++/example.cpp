@@ -15,9 +15,12 @@ namespace OID
 using namespace Snmp_pp;
 using namespace std;
 
-int SnmpGetNext(const char *ip, const char *community, Vb &vb, vector<string> &buf);
+int SnmpBulk(const char *ip, const char *community, Vb &vb, vector<string> &buf);
+int SnmpNext(const char *ip, const char *community, Vb &vb, vector<string> &buf);
+
 void GetAllNextIp(const char *ip, const char *community, vector<string> &buf);
-void RecursiveGetAllNextIp(const char *ip, const char *community, vector<pair<int, string>> &buf, int depth); 
+void RecursiveGetAllNextIp(const char *ip, const char *community, 
+							vector<pair<int, string>> &buf, int depth); 
 
 int main(int argc, char *argv[])
 {
@@ -29,12 +32,14 @@ int main(int argc, char *argv[])
 	vector<pair<int, string>> allIp;
 	RecursiveGetAllNextIp(argv[1], argv[2], allIp, 0);
 
+	cout<<"-------------------------------------------------"<<endl;
 	for(auto i : allIp) {
 		for(int count=0; count<i.first; count++) {
 			cout<<'\t';
 		}
 		cout<<i.second<<endl;
 	}
+	cout<<"-------------------------------------------------"<<endl;
 
 //	vector<string> nextIp;
 //	GetAllNextIp(argv[1], argv[2], nextIp);
@@ -58,9 +63,6 @@ void RecursiveGetAllNextIp(const char *ip, const char *community, vector<pair<in
 	if(nextIp.empty()) {
 		return;
 	}
-	if(depth == 10) {
-		return;
-	}
 	
 	for(auto i : nextIp) {
 		buf.push_back(make_pair(depth, i));
@@ -75,20 +77,26 @@ void GetAllNextIp(const char *ip, const char *community, vector<string> &buf)
 {
 	vector<string> nextHop;
 	Vb vbHop(OID::ipRouteNextHop);
-	if(SnmpGetNext(ip, community, vbHop, nextHop) < 0) {
+	if(SnmpBulk(ip, community, vbHop, nextHop) < 0) {
 		return;
-	}	
+	}
 
 	vector<string> type;
 	Vb vbType(OID::ipRouteType);
-	if(SnmpGetNext(ip, community, vbType, type) < 0) {
+	if(SnmpBulk(ip, community, vbType, type) < 0) {
 		return;
 	}
 
 	vector<string> forwarding;
 	Vb vbForwarding(OID::ipForwarding);
-	if(SnmpGetNext(ip, community, vbForwarding, forwarding) < 0) {
-		return;
+	for(auto i : nextHop) {
+		vector<string> buf;
+		Vb vbForwarding(OID::ipForwarding);
+		if(SnmpNext(i.c_str(), community, vbForwarding, buf) < 0) {
+			forwarding.push_back("0");
+			continue;
+		}
+		forwarding.push_back(buf[0]);
 	}
 
 	for(vector<string>::size_type i=0; i<type.size(); i++) {
@@ -98,7 +106,36 @@ void GetAllNextIp(const char *ip, const char *community, vector<string> &buf)
 	}
 }
 
-int SnmpGetNext(const char *ip, const char *community, Vb &vb, vector<string> &buf)
+int SnmpNext(const char *ip, const char *community, Vb &vb, vector<string> &buf)
+{
+	int status;
+
+	CTarget ctarget((IpAddress)ip, community, community);
+	ctarget.set_version(version2c);
+	Pdu pdu;
+	
+	Snmp snmp(status);
+	if(status != SNMP_CLASS_SUCCESS) {
+		cout<<snmp.error_msg(status)<<endl;
+		return -1;
+	}
+
+	pdu += vb;
+	if((status = snmp.get_next(pdu, ctarget)) == SNMP_CLASS_SUCCESS) {
+		pdu.get_vb(vb, 0);
+		//cout<<vb.get_printable_oid()<<' '<<vb.get_printable_value()<<endl;
+		buf.push_back(vb.get_printable_value());
+	}
+	else { 
+		cout<<snmp.error_msg(status)<<endl;
+		return -1;
+	}
+
+	return 0;
+}
+
+
+int SnmpBulk(const char *ip, const char *community, Vb &vb, vector<string> &buf)
 {
 	int status;
 	string curOid(vb.get_printable_oid());
@@ -120,7 +157,7 @@ int SnmpGetNext(const char *ip, const char *community, Vb &vb, vector<string> &b
 			if(curOid[curOid.size()-1] != vb.get_printable_oid()[curOid.size()-1]) {
 				break;
 			}
-			cout<<vb.get_printable_value()<<endl;
+			//cout<<vb.get_printable_oid()<<' '<<vb.get_printable_value()<<endl;
 			buf.push_back(vb.get_printable_value());
 		}
 	}
