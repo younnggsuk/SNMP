@@ -33,34 +33,30 @@ int main(int argc, char *argv[])
 	}
 
 	vector<pair<int, string>> allIp;
-	RecursiveGetAllRouterIp(argv[1], argv[2], allIp, 0);
 
+	vector<pair<int, string>> allRouter;
+	RecursiveGetAllRouterIp(argv[1], argv[2], allRouter, 0);
 
-	for(auto i : allIp) {
+	for(auto i : allRouter) {
+		allIp.push_back(make_pair(i.first, i.second));
+		
 		vector<string> buf;
 		Vb vbNet(OID::ipNetToMediaNetAddress);
 		SnmpBulk(i.second.c_str(), argv[2], vbNet, buf);
+
+		for(auto j : buf) {
+			allIp.push_back(make_pair(i.first+1, j));
+		}
+	}
+
+	cout<<"-------------------------------------------------"<<endl;
+	for(auto i : allIp) {
 		for(int count=0; count<i.first; count++) {
 			cout<<'\t';
 		}
 		cout<<i.second<<endl;
-		for(auto j : buf) {
-			for(int count=0; count<i.first+1; count++) {
-				cout<<'\t';
-			}
-			cout<<j<<endl;
-		}
-		cout<<endl;
 	}
-
-//	cout<<"-------------------------------------------------"<<endl;
-//	for(auto i : allIp) {
-//		for(int count=0; count<i.first; count++) {
-//			cout<<'\t';
-//		}
-//		cout<<i.second<<endl;
-//	}
-//	cout<<"-------------------------------------------------"<<endl;
+	cout<<"-------------------------------------------------"<<endl;
 
 	return 0;
 }
