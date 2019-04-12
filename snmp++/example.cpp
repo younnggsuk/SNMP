@@ -113,6 +113,7 @@ void GetAllRouterIp(const char *ip, const char *community, vector<string> &buf)
 
 	for(vector<string>::size_type i=0; i<type.size(); i++) {
 		if( (type[i] == "4") && (forwarding[i] == "1") ) {
+		//if((forwarding[i] == "1") ) {
 			buf.push_back(nextHop[i]);
 		}
 	}
